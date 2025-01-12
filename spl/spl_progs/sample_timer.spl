@@ -1,3 +1,4 @@
+breakpoint;
 // store SP in process table
 [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
 
@@ -12,17 +13,28 @@ alias currentPID R0;
 currentPID = [SYSTEM_STATUS_TABLE + 1];
 
 alias process_table_entry R1;
-process_table_entry = PROCESS_TABLE + 16 * currentPID;
+process_table_entry = PROCESS_TABLE + currentPID * 16;
 [process_table_entry + 12] = SP % 512;
 [process_table_entry + 14] = PTBR;
 [process_table_entry + 15] = PTLR;
-[process_table_entry +  4] = READY;
+[process_table_entry + 4] = READY;
 
+// toggle b/w processes
 alias newPID R2;
-newPID = (currentPID + 1) % 2;
+if (currentPID == 0) then
+    newPID = 1;
+else
+if (currentPID == 1) then
+    newPID = 2;
+else
+if (currentPID == 2) then
+		newPID = 0;
+endif;
+endif;
+endif;
 
 alias newProcessTable R3;
-newProcessTable = PROCESS_TABLE + 16 * newPID;
+newProcessTable = PROCESS_TABLE + newPID * 16;
 SP = [newProcessTable + 11] * 512 + [newProcessTable + 12];
 PTBR = [newProcessTable + 14];
 PTLR = [newProcessTable + 15];
@@ -35,11 +47,12 @@ if ([newProcessTable + 4] == CREATED) then
 	ireturn;
 endif;
 
+[newProcessTable + 4] = RUNNING;
+
 // restore reg context, SP set to USER STACK
 restore;
 SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
 
-[newProcessTable + 4] = RUNNING;
-
 // switch to user mode
+breakpoint;
 ireturn;

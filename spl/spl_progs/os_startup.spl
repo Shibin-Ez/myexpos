@@ -1,36 +1,12 @@
-// loadint Library
-loadi(63, 13);
-loadi(64, 14);
-
-// loading init program
-loadi(65,7);
-loadi(66,8);
-
-// loading INT7 module
-loadi(16,29);
-loadi(17,30);
-
-// loading INT10 module
-loadi(22,35);
-loadi(23,36);
-
-// loading exception handler
-loadi(2, 15);
-loadi(3, 16);
-
-// loading timer interrupt routine
-loadi(4, 17);
-loadi(5, 18);
-
-// loading idle process
-loadi(69, 11);
-loadi(70, 12);
-
 // loading module 7 (Boot Module)
 loadi(54, 67);
 loadi(55, 68);
 
-// page table
+SP = 82 * 512 - 1;
+
+call BOOT_MODULE;
+
+// page table - Idle
 
 PTBR = PAGE_TABLE_BASE;
 PTLR = 10;
@@ -65,61 +41,21 @@ PTLR = 10;
 [PTBR+18] = -1;
 [PTBR+19] = "0000";
 
-// INIT - PROCESS (PID = 1)
-
-// Library
-[PTBR+20] = 63;
-[PTBR+21] = "0100";
-[PTBR+22] = 64;
-[PTBR+23] = "0100";
-
-// Heap
-[PTBR+24] = 78;
-[PTBR+25] = "0110";
-[PTBR+26] = 79;
-[PTBR+27] = "0110";
-
-// Code
-[PTBR+28] = 65;
-[PTBR+29] = "0100";
-[PTBR+30] = 66;
-[PTBR+31] = "0100";
-
-// Stack
-[PTBR+36] = 76;
-[PTBR+37] = "0110";
-[PTBR+38] = 77;
-[PTBR+39] = "0110";
-
 
 // Process Table
 [PROCESS_TABLE + 1] = 0; // PID of idle process
-[PROCESS_TABLE + 4] = CREATED;
+[PROCESS_TABLE + 4] = RUNNING;
 [PROCESS_TABLE + 11] = 82; // idle - user area page
 [PROCESS_TABLE + 13] = 8*512; // UPTR - idle
 [PROCESS_TABLE + 14] = PTBR; // idle
 [PROCESS_TABLE + 15] = PTLR; // idle
 [PROCESS_TABLE + 12] = 0; // KPTR - idle
 
-[PROCESS_TABLE + 16 + 1] = 1; // PID of init process
-[PROCESS_TABLE + 16 + 4] = RUNNING;
-[PROCESS_TABLE + 16 + 11] = 80; // User area page no - init
-[PROCESS_TABLE + 16 + 13] = 8*512; // UPTR
-[PROCESS_TABLE + 16 + 14] = PTBR + 20; // idle
-[PROCESS_TABLE + 16 + 15] = PTLR; // idle
-[PROCESS_TABLE + 16 + 12] = 0; // KPTR - idle
-
-
 // System status table
-[SYSTEM_STATUS_TABLE + 1] = 1; // PID - init
+[SYSTEM_STATUS_TABLE + 1] = 0; // PID - idle
 
 // IP when idle program starts (Entry Point)
-[81*512] = [65 * 512 + 1];
-
-// IP when init program starts (Entry Point)
-[76*512] = [69 * 512 + 1]; // 2nd entry of page header
-
-PTBR = PTBR + 20;
+[81*512] = [69 * 512 + 1];
 
 SP = 8*512; // SP pointing to logical page 8
 ireturn;
