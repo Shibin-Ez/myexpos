@@ -1,2 +1,45 @@
-print "TIMER";
+// store SP in process table
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+
+// set SP to KERNAL STACK (User area page start)
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+// saving kernal stack context
+backup;
+
+// timer main code
+alias currentPID R0;
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+
+alias process_table_entry R1;
+process_table_entry = PROCESS_TABLE + 16 * currentPID;
+[process_table_entry + 12] = SP % 512;
+[process_table_entry + 14] = PTBR;
+[process_table_entry + 15] = PTLR;
+[process_table_entry +  4] = READY;
+
+alias newPID R2;
+newPID = (currentPID + 1) % 2;
+
+alias newProcessTable R3;
+newProcessTable = PROCESS_TABLE + 16 * newPID;
+SP = [newProcessTable + 11] * 512 + [newProcessTable + 12];
+PTBR = [newProcessTable + 14];
+PTLR = [newProcessTable + 15];
+
+[SYSTEM_STATUS_TABLE + 1] = newPID;
+
+if ([newProcessTable + 4] == CREATED) then
+	[newProcessTable + 4] = RUNNING;
+	SP = [newProcessTable + 13];
+	ireturn;
+endif;
+
+// restore reg context, SP set to USER STACK
+restore;
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+
+[newProcessTable + 4] = RUNNING;
+
+// switch to user mode
 ireturn;
