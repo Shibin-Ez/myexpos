@@ -1,0 +1,22 @@
+// get current PID
+alias currentPID R0;
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+
+alias process_table_entry R1;
+process_table_entry = PROCESS_TABLE + 16 * currentPID;
+
+[process_table_entry + 4] = TERMINATED;
+
+// checking all process TERMINATED except idle
+alias pid R2;
+pid = 1;
+while (pid < 16) do
+  alias processState R3;
+  processState = [PROCESS_TABLE + 16 * pid + 4];
+  if (processState != TERMINATED) then
+    call MOD_5;
+  endif;
+  pid = pid + 1;
+endwhile;
+
+halt;
