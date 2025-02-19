@@ -1,0 +1,51 @@
+// SET mode flag to 7 in process table
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 7;
+
+alias userSP R0;
+userSP = SP;
+
+// storing user stack ptr on process table
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = userSP;
+
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+// file descriptor from physical address
+alias physicalPageNo R1;
+alias offset R2;
+physicalPageNo = [PTBR + 2 * ((userSP - 4) / 512)];
+offset = (userSP - 4) % 512;
+alias fileDescAddress R3;
+fileDescAddress = physicalPageNo * 512 + offset;
+alias fileDescriptor R4;
+fileDescriptor = [fileDescAddress];
+
+// -1 is the valid fd for console input
+if (fileDescriptor != -1) then
+  alias physicalAddrRetVal R5;
+  physicalAddrRetVal = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512;
+  [physicalAddrRetVal] = -1;
+else
+  alias wordPhysicalAddress R5;
+  wordPhysicalAddress = [PTBR + 2 * ((userSP - 3) / 512)] * 512 + (userSP - 3) % 512;
+  multipush(R0, R1, R2, R3, R4, R5);
+  alias arg1 R1;
+  alias arg2 R2;
+  alias arg3 R3;
+  arg1 = 4; // terminal_read function number
+  arg2 = [SYSTEM_STATUS_TABLE + 1]; // process id
+  arg3 = [wordPhysicalAddress]; // buffer address
+
+  call MOD_4;
+
+  multipop(R0, R1, R2, R3, R4, R5);
+
+  alias physicalAddrRetVal R6;
+  physicalAddrRetVal = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512;
+  [physicalAddrRetVal] = 0;
+endif;
+
+// restoring mode flag in process table
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+
+SP = userSP;
+ireturn;

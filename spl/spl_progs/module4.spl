@@ -24,5 +24,32 @@ if (functionNum == 3) then // terminal write
   return;
 
 else
+if (functionNum == 4) then // terminal_read
+  multipush(R1, R2, R3);
+
+  functionNum = 8; // aquire terminal
+  call MOD_0;
+
+  multipop(R1, R2, R3);
+
+  read;
+
+  // set status of currentPID to wait_terminal
+  [PROCESS_TABLE + currentPID*16 + 4] = WAIT_TERMINAL;
+
+  // calling scheduler
+  multipush(R1, R2, R3);
+  call MOD_5;
+
+  multipop(R1, R2, R3);
+
+  // convert word logical address to physical
+  // and storing the value in the input buffer
+  [[PTBR + 2 * (word / 512)] * 512 + (word % 512)] = [PROCESS_TABLE + currentPID*16 + 8];
+  
   return;
+  
+else
+  return;
+endif;
 endif;

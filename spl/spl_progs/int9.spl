@@ -1,0 +1,149 @@
+// save user stack
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 13] = SP;
+
+alias userSP R0;
+userSP = SP;
+
+SP = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11] * 512 - 1;
+
+// set mode flag to 9
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 9;
+
+// get filename from user stack
+alias physicalAddress R1;
+physicalAddress = [PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512;
+alias filename R2;
+filename = [physicalAddress];
+
+// iterating through inode table
+alias inodeEntry R3;
+inodeEntry = 0;
+
+alias flag R4;
+flag = 0;
+
+alias inode_table_entry R5;
+while (inodeEntry < MAX_FILE_NUM) do
+  inode_table_entry = INODE_TABLE + 16 * inodeEntry;
+  if (filename == [inode_table_entry + 1]) then
+    if ([inode_table_entry + 0] == EXEC) then
+      flag = 1;
+      break;
+    endif;
+  endif;
+  inodeEntry = inodeEntry + 1;
+endwhile;
+
+if (flag == 0) then
+  alias physicalAddrRetVal R6;
+  physicalAddrRetVal = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512;
+  [physicalAddrRetVal] = -1;
+
+  // setting back mode flag to 0
+  [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0;
+
+  SP = userSP;
+  ireturn;
+endif;
+
+// inodeEntry is saved on R3
+
+// calling exit process - process manager module
+multipush(R0, R1, R2, R3, R4, R5, R6);
+alias arg1 R1;
+alias arg2 R2;
+arg1 = 3; // exit process function number
+arg2 = [SYSTEM_STATUS_TABLE + 1]; // process id
+call MOD_1;
+multipop(R0, R1, R2, R3, R4, R5, R6);
+
+alias userAreaPageNo R7;
+userAreaPageNo = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11];
+[MEMORY_FREE_LIST + userAreaPageNo] = [MEMORY_FREE_LIST + userAreaPageNo] + 1;
+
+[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+// set SP to start of kernal stack
+SP = userAreaPageNo * 512;
+
+// new process is of same PID
+
+// set process state to running, inode index
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 4] = RUNNING;
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 7] = inodeEntry;
+
+
+// allocating pages
+
+// allocate Library
+[PTBR + 0] = 63;
+[PTBR + 1] = "0100";
+[PTBR + 2] = 64;
+[PTBR + 3] = "0100";
+
+multipush(R0, R1, R2, R3, R4, R5, R6, R7);
+alias retVal R0;
+
+// allocate Heap
+arg1 = 1; // get free page function number
+call MOD_2;
+[PTBR + 4] = retVal;
+[PTBR + 5] = "0110";
+
+arg1 = 1; // get free page function number
+call MOD_2;
+[PTBR + 6] = retVal;
+[PTBR + 7] = "0110";
+
+// allocate Stack
+arg1 = 1; // get free page function number
+call MOD_2;
+[PTBR + 16] = retVal;
+[PTBR + 17] = "0110";
+
+arg1 = 1; // get free page function number
+call MOD_2;
+[PTBR + 18] = retVal;
+[PTBR + 19] = "0110";
+
+multipop(R0, R1, R2, R3, R4, R5, R6, R7);
+
+// allocating code pages from disk to memory
+alias fileSize R8;
+fileSize = [inode_table_entry + 2];
+alias numPages R9;
+numPages = (fileSize - 1) / 512 + 1;
+
+alias i R10;
+i = 0;
+
+while (i < 4) do
+  if (i < numPages) then
+    multipush(R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10);
+    arg1 = 1; // get free page function number
+    call MOD_2;
+    [PTBR + 8 + 2 * i] = retVal;
+    [PTBR + 9 + 2 * i] = "0100";
+    multipop(R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10);
+  else
+    [PTBR + 8 + 2 * i] = -1;
+    [PTBR + 9 + 2 * i] = "0000";
+  endif;
+  i = i + 1;
+endwhile;
+
+i = 0;
+while (i < numPages) do
+  loadi([PTBR + 8 + 2 * i], [inode_table_entry + 8 + i]);
+  i = i + 1;
+endwhile;
+
+// storing entry point (present in 1st code page header) to user stack
+[[PTBR + 16] * 512] = [[PTBR + 8] * 512 + 1];
+
+SP = 8 * 512;
+
+// set back mode flag to 0
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0;
+
+ireturn;

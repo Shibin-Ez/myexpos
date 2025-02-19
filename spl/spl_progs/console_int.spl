@@ -1,0 +1,36 @@
+// setting UPTR entry of current process
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+
+// setting SP to KERNAL STACK of current process
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+backup;
+
+// getting pid of terminal aquired process
+alias reqPID R0;
+reqPID = [TERMINAL_STATUS_TABLE + 1];
+
+// getting process table entry of reqPID
+alias process_table_entry R1;
+process_table_entry = PROCESS_TABLE + reqPID * 16;
+
+// copy word from P0 to process table - input buffer
+[process_table_entry + 8] = P0;
+
+// release terminal
+multipush(R0, R1);
+
+alias functionNum R1; // arg1
+functionNum = 9; // release terminal
+alias arg_reqPID R2;
+arg_reqPID = reqPID;
+call MOD_0;
+
+multipop(R0, R1);
+
+restore;
+
+// setting SP back to UPTR entry of current process
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+
+ireturn;

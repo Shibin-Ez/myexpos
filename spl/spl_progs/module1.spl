@@ -1,0 +1,71 @@
+alias functionNum R1;
+alias currentPID R2;
+
+if (functionNum == 2) then // free user area page
+  alias userAreaPageNo R3;
+  userAreaPageNo = [PROCESS_TABLE + 16 * currentPID + 11];
+
+  // invoke release page function - memmory manager module
+  multipush(R1, R2, R3);
+  alias arg1 R1;
+  alias arg2 R2;
+  arg1 = 2; // release page function number
+  arg2 = userAreaPageNo;
+  call MOD_2;
+  multipop(R1, R2, R3);
+  
+  return;
+else
+if (functionNum == 3) then // exit process
+  // invoke free page table - same module
+  multipush(R1, R2);
+  alias arg1 R1;
+  alias arg2 R2;
+  arg1 = 4; // free page table function number
+  arg2 = currentPID;
+  call MOD_1;
+  multipop(R1, R2);
+
+  // invoke free user area page - same module
+  multipush(R1, R2);
+  arg1 = 2; // free user area page function number
+  arg2 = currentPID;
+  call MOD_1;
+  multipop(R1, R2);
+
+  // set process state to terminated
+  [PROCESS_TABLE + 16 * currentPID + 4] = TERMINATED;
+
+  return;
+else
+if (functionNum == 4) then // free page table
+  // invalidate library pages
+  [PTBR + 0] = -1;
+  [PTBR + 1] = "0000";
+  [PTBR + 2] = -1;
+  [PTBR + 3] = "0000";
+
+  // release all valid pages
+  alias i R3;
+  i = 2;
+  while (i < PTLR * 2) do
+    if ([PTBR + i] != -1) then
+      // invoke release page function - memmory manager module
+      multipush(R1, R2, R3);
+      alias arg1 R1;
+      alias arg2 R2;
+      arg1 = 2; // release page function number
+      arg2 = [PTBR + i];
+      call MOD_2;
+      multipop(R1, R2, R3);
+
+      [PTBR + i] = -1;
+      [PTBR + i + 1] = "0000";
+    endif;
+    i = i + 2;
+  endwhile;
+
+  return;
+endif;
+endif;
+endif;
