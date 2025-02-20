@@ -36,5 +36,20 @@ if (functionNum == 9) then // release terminal
     retVal = -1;
     return;
   endif;
+else
+if (functionNum == 3) then // aquire disk
+  while ([DISK_STATUS_TABLE + 0] == 1) do // disk status - busy
+    [PROCESS_TABLE + currentPID*16 + 4] = WAIT_DISK;
+    multipush (R1, R2);
+    
+    call MOD_5; // calling scheduler
+    
+    multipop (R1, R2);
+  endwhile;
+
+  [DISK_STATUS_TABLE + 0] = 1;
+  [DISK_STATUS_TABLE + 4] = currentPID;
+  return;
+endif;
 endif;
 endif;

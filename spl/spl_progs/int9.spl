@@ -134,7 +134,25 @@ endwhile;
 
 i = 0;
 while (i < numPages) do
-  loadi([PTBR + 8 + 2 * i], [inode_table_entry + 8 + i]);
+  // loadi([PTBR + 8 + 2 * i], [inode_table_entry + 8 + i]);
+  alias arg1_functionNum R1;
+  alias arg2_pid R2;
+  alias arg3_pageNo R3;
+  alias arg4_blockNo R4;
+  arg1_functionNum = 2; // load page function number
+  arg2_pid = [SYSTEM_STATUS_TABLE + 1];
+  arg3_pageNo = [PTBR + 8 + 2 * i];
+  arg4_blockNo = [inode_table_entry + 8 + i];
+  call MOD_4;
+
+  i = i + 1;
+endwhile;
+
+// initialize per-process resource table
+i = 1;
+userAreaPageNo = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11];
+while (i < 9) do
+  [(userAreaPageNo+1)*512 - i*2] = -1;
   i = i + 1;
 endwhile;
 
