@@ -40,7 +40,7 @@ if (functionNum == 2) then // release page
   [MEMORY_FREE_LIST + page_no] = [MEMORY_FREE_LIST + page_no] - 1;
   if ([MEMORY_FREE_LIST + page_no] == 0) then
     // increment mem free count
-    [SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] + 1;
+    [SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] + 1; // disk free count
   endif;
 
   alias pid R3;
