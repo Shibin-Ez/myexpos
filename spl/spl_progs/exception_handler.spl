@@ -1,0 +1,94 @@
+breakpoint;
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = -1;
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+backup;
+
+multipush(EIP);
+
+if (EC != 0 || [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] == (10 * 512 - 1)) then // it is not page fault
+  // printing the error message
+  if (EC == 0) then
+    print "Stack overflow";
+  endif;
+  if (EC == 1) then
+    print "Illegal instruction";
+  endif;
+  if (EC == 2) then
+    print "Illegal memory access";
+  endif;
+  if (EC == 3) then
+    print "Arithmetic Exception";
+  endif;
+  
+
+  // calling exit process
+  multipush (R2, R3);
+  R1 = 3; // arg1 is functionNum, [SYSTEM_STATUS_TABLE + 1] is arg2
+  R2 = [SYSTEM_STATUS_TABLE + 1];
+  call MOD_1;
+
+  // calling scheduler
+  call MOD_5;
+
+  multipop (R2, R3);
+else
+  // page fault
+
+  alias blockNum R4;
+  breakpoint;
+  if (EPN > 3 && EPN < 8) then // code page fault
+    // call get code page
+    breakpoint;
+    blockNum = [DISK_MAP_TABLE + 10 * [SYSTEM_STATUS_TABLE + 1] + EPN];
+    print blockNum;
+    multipush (R2, R3, R4);
+    multipush(EPN);
+    R1 = 5; // arg1 functionNum
+    R2 = blockNum; // arg2
+    call MOD_2;
+    multipop(EPN);
+    [PAGE_TABLE_BASE + [SYSTEM_STATUS_TABLE + 1] * 20 + 2 * EPN] = R0; // retVal
+    [PAGE_TABLE_BASE + [SYSTEM_STATUS_TABLE + 1] * 20 + 2 * EPN + 1] = "1100";
+
+    multipop (R2, R3, R4);
+  
+  else
+    // print "wow551851818";
+    // heap page fault
+
+    multipush (R2, R3);
+
+    // getting first heap page
+    R1 = 1; // arg1 functionNum
+    call MOD_2;
+    [PTBR + 4] = R0;
+    [PTBR + 5] = "1110";
+
+    // getting second heap page
+    R1 = 1;
+    call MOD_2;
+    [PTBR + 6] = R0;
+    [PTBR + 7] = "1110";
+
+    multipop (R2, R3);
+  endif;
+endif;
+
+
+// setting mode flag back to 0
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0;
+
+multipop (EIP);
+
+restore;
+
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+SP = SP + 1;
+
+[[PTBR + 2 * (SP / 512)] * 512 + (SP % 512)] = EIP;
+
+ireturn;

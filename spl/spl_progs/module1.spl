@@ -65,6 +65,26 @@ if (functionNum == 4) then // free page table
     i = i + 2;
   endwhile;
 
+  // going through heap, stack in disk map table
+  i = 2;
+  while (i < 10) do
+    if (i == 2 || i == 3 || i == 8 || i == 9) then
+      if ([DISK_MAP_TABLE + 10 * currentPID + i] != -1) then
+        // invoke release block function
+        multipush(R1, R2, R3);
+        functionNum = 4;
+        alias blockNum R2;
+        blockNum = [DISK_MAP_TABLE + 10 * currentPID + i];
+        call MOD_2;
+        multipop(R1, R2, R3);
+      endif;
+    endif;
+
+    // invalidate all entries
+    [DISK_MAP_TABLE + 10 * currentPID + i] = -1;
+    i = i + 1;
+  endwhile;
+
   return;
 endif;
 endif;

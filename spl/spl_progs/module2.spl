@@ -54,5 +54,52 @@ if (functionNum == 2) then // release page
   endwhile;
 
   return;
+else
+if (functionNum == 5) then // get free code page
+  alias blockNum R2;
+  alias pid R3;
+  alias i R4;
+  pid = 0;
+  while (pid < 16) do
+    i = 4;
+    while (i < 8) do
+      if ([DISK_MAP_TABLE + 10 * pid + i] == blockNum) then
+        if ([PAGE_TABLE_BASE + 20 * pid + i*2] != -1) then
+          R0 = [PAGE_TABLE_BASE + 20 * pid + i*2]; // retVal page number
+          [MEMORY_FREE_LIST + R0] = [MEMORY_FREE_LIST + R0] + 1;
+          return;
+        endif;
+      endif;
+      i = i + 1;
+    endwhile;
+    pid = pid + 1;
+  endwhile;
+
+  // blockNum not found - invoke get free page
+  alias pageNum R5;
+  multipush(R0, R1, R2, R3, R4);
+  functionNum = 1;
+  call MOD_2;
+  pageNum = R0; // retVal
+  multipop(R0, R1, R2, R3, R4);
+
+  // calling load from device manager module
+  multipush(R0, R1, R2, R3, R4, R5);
+  functionNum = 2; // arg1
+  R4 = blockNum; // arg4 should call first since blockNum uses R2
+  R2 = [SYSTEM_STATUS_TABLE + 1]; // arg2 - pid
+  R3 = pageNum; // arg3
+  call MOD_4;
+  multipop(R0, R1, R2, R3, R4, R5);
+
+  R0 = pageNum;
+  return;
+else
+if (functionNum == 4) then // release block
+  alias blockNum R2;
+  [DISK_FREE_LIST + blockNum] = [DISK_FREE_LIST + blockNum] - 1;
+  return;
+endif;
+endif;
 endif;
 endif;

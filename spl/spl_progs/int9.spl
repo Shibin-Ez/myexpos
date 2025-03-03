@@ -84,16 +84,12 @@ SP = userAreaPageNo * 512;
 multipush(R0, R1, R2, R3, R4, R5, R6, R7);
 alias retVal R0;
 
-// allocate Heap
-arg1 = 1; // get free page function number
-call MOD_2;
-[PTBR + 4] = retVal;
-[PTBR + 5] = "0110";
+// allocate Heap (don't)
+[PTBR + 4] = -1;
+[PTBR + 5] = "0000";
 
-arg1 = 1; // get free page function number
-call MOD_2;
-[PTBR + 6] = retVal;
-[PTBR + 7] = "0110";
+[PTBR + 6] = -1;
+[PTBR + 7] = "0000";
 
 // allocate Stack
 arg1 = 1; // get free page function number
@@ -117,34 +113,36 @@ numPages = (fileSize - 1) / 512 + 1;
 alias i R10;
 i = 0;
 
+// calling get code page function
+multipush(R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10);
+arg1 = 5; // get code page function number
+arg2 = [inode_table_entry + 8]; // blockNum
+call MOD_2;
+[PTBR + 8] = retVal;
+[PTBR + 9] = "0100";
+
+i = 1;
 while (i < 4) do
-  if (i < numPages) then
-    multipush(R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10);
-    arg1 = 1; // get free page function number
-    call MOD_2;
-    [PTBR + 8 + 2 * i] = retVal;
-    [PTBR + 9 + 2 * i] = "0100";
-    multipop(R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10);
-  else
-    [PTBR + 8 + 2 * i] = -1;
-    [PTBR + 9 + 2 * i] = "0000";
-  endif;
+  [PTBR + 8 + i * 2] = -1;
+  [PTBR + 9 + i * 2] = "0000";
   i = i + 1;
 endwhile;
+multipop(R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10);
 
+// initialize the disk map table
+alias currentPID R11;
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+[DISK_MAP_TABLE + currentPID * 10 + 2] = -1; // Heap1
+[DISK_MAP_TABLE + currentPID * 10 + 3] = -1; // Heap2
+[DISK_MAP_TABLE + currentPID * 10 + 8] = -1; // Stack1
+[DISK_MAP_TABLE + currentPID * 10 + 9] = -1; // Stack2
 i = 0;
-while (i < numPages) do
-  // loadi([PTBR + 8 + 2 * i], [inode_table_entry + 8 + i]);
-  alias arg1_functionNum R1;
-  alias arg2_pid R2;
-  alias arg3_pageNo R3;
-  alias arg4_blockNo R4;
-  arg1_functionNum = 2; // load page function number
-  arg2_pid = [SYSTEM_STATUS_TABLE + 1];
-  arg3_pageNo = [PTBR + 8 + 2 * i];
-  arg4_blockNo = [inode_table_entry + 8 + i];
-  call MOD_4;
-
+while (i < 4) do
+  if (i < numPages) then
+    [DISK_MAP_TABLE + currentPID * 10 + 4 + i] = [inode_table_entry + 8 + i]; 
+  else
+    [DISK_MAP_TABLE + currentPID * 10 + 4 + i] = -1;
+  endif;
   i = i + 1;
 endwhile;
 
