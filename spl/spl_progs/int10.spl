@@ -12,6 +12,7 @@ process_table_entry = PROCESS_TABLE + 16 * currentPID;
 SP = [process_table_entry + 11] * 512 - 1;
 
 // invoke exit process
+breakpoint;
 multipush(R0, R1);
 R1 = 3;
 R2 = currentPID;

@@ -1,0 +1,47 @@
+type
+  list {
+    int key;
+    list next;
+  }
+endtype
+
+decl
+  list head, prev, p;
+enddecl
+
+int main () {
+  decl
+    int temp, i, n;
+  enddecl
+  begin
+    temp = exposcall("Write", -2, "Enter N: ");
+    temp = exposcall("Read", -1, n);
+
+    i = 0;
+    temp = initialize();
+    while (i < n) do
+      p = alloc();
+      temp = exposcall("Read", -1, p.key);
+      
+      if (i == 0) then
+        head = p;
+      else
+        prev.next = p;
+      endif;
+
+      prev = p;
+      i = i + 1;
+    endwhile;
+
+    // printing linked list
+    i = 0;
+    p = head;
+    while (i < n) do
+      temp = exposcall("Write", -2, p.key);
+      p = p.next;
+      i = i + 1;
+    endwhile;
+
+    return 0;
+  end
+}

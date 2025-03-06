@@ -79,6 +79,12 @@ loadi(61, 2);
 loadi(18, 31);
 loadi(19, 32);
 
+// loading int11, int15
+loadi(24, 37);
+loadi(25, 38);
+loadi(32, 45);
+loadi(33, 46);
+
 // terminal, disk status to free
 [TERMINAL_STATUS_TABLE] = 0;
 [DISK_STATUS_TABLE] = 0;

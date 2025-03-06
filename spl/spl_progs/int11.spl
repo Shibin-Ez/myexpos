@@ -1,0 +1,82 @@
+alias syscallNo R0;
+alias userSP R1;
+
+R0 = [[PTBR + 2 * ((SP - 5)/512)] * 512 + (SP - 5) % 512];
+breakpoint;
+userSP = SP;
+
+// save user stack
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 13] = SP;
+
+// switch stack to kernal
+SP = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11] * 512 - 1;
+  
+if (syscallNo == 11) then // get pid
+  [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 11; // mode flag
+  
+  [[PTBR + 2 * ((userSP - 1)/512)] * 512 + (userSP - 1) % 512] = [SYSTEM_STATUS_TABLE + 1]; // retVal
+  
+  [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0; // mode flag
+else
+if (syscallNo == 12) then // get ppid
+  [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 12; // mode flag
+  
+  alias ppid R2;
+  ppid = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 2];
+  [[PTBR + 2 * ((userSP - 1)/512)] * 512 + (userSP - 1) % 512] = ppid; // retVal
+  
+  [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0; // mode flag
+else
+if (syscallNo == 13) then // wait
+  [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 13; // mode flag
+
+  alias waitPID R2;
+  waitPID = [[PTBR + 2 * ((userSP - 4)/512)] * 512 + (userSP - 4) % 512];
+
+  // check validity (pid 0 to 16 ?) don't wait for itself or terminated process
+  if (waitPID < 0 || waitPID >= 16 || waitPID == [SYSTEM_STATUS_TABLE + 1] || [PROCESS_TABLE + 16 * waitPID + 4] == TERMINATED) then
+    // -1 as retVal
+    [[PTBR + 2 * ((userSP - 1)/512)] * 512 + (userSP - 1) % 512] = -1;
+    SP = userSP;
+    [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0; // mode flag
+    ireturn;
+  endif;
+
+  // set state to WAIT_PROCESS
+  [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 4] = WAIT_PROCESS;
+  [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 5] = waitPID;
+
+  // calling schedular
+  multipush(R0, R1, R2);
+  call MOD_5;
+  multipop(R0, R1, R2);
+
+  // now, process is READY
+  [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0; // mode flag
+  [[PTBR + 2 * ((userSP - 1)/512)] * 512 + (userSP - 1) % 512] = 0; // retVal
+else
+if (syscallNo == 14) then // signal
+  alias process_table_entry R2;
+  process_table_entry = PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1];
+  
+  [process_table_entry + 9] = 14; // mode flag
+  
+  alias pid R3;
+  pid = 0;
+  while (pid < 16) do
+    process_table_entry = PROCESS_TABLE + 16 * pid;
+    if ([process_table_entry + 4] == WAIT_PROCESS && [process_table_entry + 5] == pid) then
+      [process_table_entry + 4] = READY;
+    endif;
+    pid = pid + 1;
+  endwhile;
+
+  [process_table_entry + 9] = 0; // mode flag
+  [[PTBR + 2 * ((userSP - 1)/512)] * 512 + (userSP - 1) % 512] = 0; // retVal
+endif;
+endif;
+endif;
+endif;
+
+SP = userSP;
+ireturn;

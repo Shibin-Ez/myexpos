@@ -34,7 +34,28 @@ if (functionNum == 3) then // exit process
   multipop(R1, R2);
 
   // set process state to terminated
-  [PROCESS_TABLE + 16 * currentPID + 4] = TERMINATED;
+  alias process_table_entry R3;
+  process_table_entry = PROCESS_TABLE + 16 * currentPID;
+  [process_table_entry + 4] = TERMINATED;
+
+  // wake up all process waiting for this process, set child process to orphan(ppid -1)
+  alias pid R4;
+  pid = 0;
+  if ([process_table_entry + 9] != 9) then // mode flag is not exec
+    while (pid < 16) do
+      process_table_entry = PROCESS_TABLE + 16 * pid;
+      if ([process_table_entry + 4] == WAIT_PROCESS && [process_table_entry + 5] == currentPID) then
+        [process_table_entry + 4] = READY;
+      endif;
+    
+      // check if ppid matches parent pid
+      if ([process_table_entry + 2] == currentPID) then
+        [process_table_entry + 2] = -1;
+      endif;
+
+      pid = pid + 1;
+    endwhile;
+  endif;
 
   return;
 else
