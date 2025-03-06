@@ -1,0 +1,156 @@
+// fork is interrupt routine 8
+
+// set mode flag to sys_call_no(8)
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 8;
+
+// save userSP
+alias userSP R0;
+userSP = SP;
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+
+// switch to kernal stack
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+// get pid of child process - call get pcb entry
+
+alias childPID R1;
+multipush (R0);
+R1 = 1; // functionNum arg1
+R2 = [SYSTEM_STATUS_TABLE + 1];
+call MOD_1;
+childPID = R0;
+multipop (R0);
+
+
+// check all 16 process occuppied
+if (childPID == -1) then
+  alias physicalAddrRetVal R2;
+  physicalAddrRetVal = [PTBR + ((userSP - 1) / 512) * 2] * 512 + (userSP - 1) % 512;
+  [physicalAddrRetVal] = -1;
+
+  // setting back mode flag to 0
+  [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0;
+
+  SP = userSP;
+  ireturn;
+endif;
+
+// allocate heap page if_not already
+if ([PTBR + 4] == -1) then
+  // allocating Heap1
+  multipush(R0, R1);
+  R1 = 1; // functionNum 1 for get free page
+  call MOD_2;
+  [PTBR + 4] = R0; // R0 is retVal
+  [PTBR + 5] = "0110";
+
+  // allocating Heap2
+  R1 = 1;
+  call MOD_2;
+  [PTBR + 6] = R0;
+  [PTBR + 7] = "0110";
+  multipop(R0, R1);
+endif;
+
+
+// get stack pages, userAreaPage of child
+alias retVal R3;
+multipush(R0, R1);
+R1 = 1;
+call MOD_2;
+retVal = R0;
+multipop(R0, R1);
+[PAGE_TABLE_BASE + childPID * 20 + 16] = retVal;
+[PAGE_TABLE_BASE + childPID * 20 + 17] = "0110";
+
+multipush(R0, R1);
+R1 = 1;
+call MOD_2;
+retVal = R0;
+multipop(R0, R1);
+[PAGE_TABLE_BASE + childPID * 20 + 16] = retVal;
+[PAGE_TABLE_BASE + childPID * 20 + 17] = "0110";
+
+multipush(R0, R1);
+R1 = 1;
+call MOD_2;
+retVal = R0;
+multipop(R0, R1);
+[PROCESS_TABLE + 16 * childPID + 11] = retVal; // userAreaPageNo
+
+
+// copy the process table
+[PROCESS_TABLE + 16 * childPID + 0] = 0;
+[PROCESS_TABLE + 16 * childPID + 2] = [SYSTEM_STATUS_TABLE + 1];
+[PROCESS_TABLE + 16 * childPID + 3] = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 3];
+[PROCESS_TABLE + 16 * childPID + 4] = CREATED;
+[PROCESS_TABLE + 16 * childPID + 6] = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 6];
+[PROCESS_TABLE + 16 * childPID + 7] = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 7];
+[PROCESS_TABLE + 16 * childPID + 9] = 0;
+[PROCESS_TABLE + 16 * childPID + 10] = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 10];
+[PROCESS_TABLE + 16 * childPID + 11] = retVal;
+[PROCESS_TABLE + 16 * childPID + 12] = 0;
+[PROCESS_TABLE + 16 * childPID + 13] = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 13];
+
+
+// copy per-process resource table (skip for now)
+alias i R4;
+alias parentStack R5;
+alias childStack R6;
+i = 0;
+parentStack = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11] * 512;
+childStack = retVal * 512;
+while (i < 512) do
+  [childStack + i] = [parentStack + i];
+  i = i + 1;
+endwhile;
+
+// copy per-process disk map table (?)
+i = 0;
+while (i < 10) do
+  [DISK_MAP_TABLE + 10 * childPID + i] = [DISK_MAP_TABLE + 10 * [SYSTEM_STATUS_TABLE + 1] + i];
+  i = i + 1;
+endwhile;
+
+// initialize page table Library, heap, code (stack already done)
+i = 0;
+while (i < 16) do
+  [PAGE_TABLE_BASE + 20 * childPID + i] = [PTBR + i];
+  [PAGE_TABLE_BASE + 20 * childPID + i + 1] = [PTBR + i + 1];
+  if ([PTBR + i] != -1) then
+    // increment share count
+    [MEMORY_FREE_LIST + [PTBR + i]] = [MEMORY_FREE_LIST + [PTBR + i]] + 1;
+  endif;
+  i = i + 2;
+endwhile;
+
+
+// copy the stack page1
+i = 0;
+parentStack = [PTBR + 16] * 512;
+childStack = [PAGE_TABLE_BASE + 20 * childPID + 16] * 512;
+while (i < 512) do
+  [childStack + i] = [parentStack + i];
+  i = i + 1;
+endwhile;
+
+// copy the stack page2
+i = 0;
+parentStack = [PTBR + 18] * 512;
+childStack = [PAGE_TABLE_BASE + 20 * childPID + 18] * 512;
+while (i < 512) do
+  [childStack + i] = [parentStack + i];
+  i = i + 1;
+endwhile;
+
+
+// storing BP on top of kernal stack of child
+childStack = retVal * 512;
+[childStack] = BP;
+
+// setup return_values parent - childPID, child - pid 0
+[[PTBR + 2 * ((userSP - 1)/512)] * 512 + (userSP - 1) % 512] = childPID;
+[[PAGE_TABLE_BASE + 20 * childPID + 2 * ((userSP - 1)/512)] * 512 + (userSP - 1) % 512] = 0;
+
+SP = userSP;
+ireturn;

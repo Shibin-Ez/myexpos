@@ -86,6 +86,30 @@ if (functionNum == 4) then // free page table
   endwhile;
 
   return;
+else
+if (functionNum == 1) then // get pcb entry
+  alias childPID R3;
+  childPID = 0;
+  while (childPID < 16) do
+    if ([PROCESS_TABLE + 16 * childPID + 4] == TERMINATED) then
+      break;
+    endif;
+    childPID = childPID + 1;
+  endwhile;
+
+  if (childPID == 16) then
+    R0 = -1; // retVal
+    return;
+  endif;
+  
+  // now, childPID is the process id of child process
+  [PROCESS_TABLE + 16 * childPID + 1] = childPID;
+  [PROCESS_TABLE + 16 * childPID + 4] = ALLOCATED;
+  [PROCESS_TABLE + 16 * childPID + 14] = PAGE_TABLE_BASE + 20 * childPID; // PTBR
+  [PROCESS_TABLE + 16 * childPID + 15] = PTLR;
+  R0 = childPID;
+  return;
+endif;
 endif;
 endif;
 endif;

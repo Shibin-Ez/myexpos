@@ -39,6 +39,7 @@ if ([newProcessTable + 4] == CREATED) then
   SP = [newProcessTable + 13];
   [newProcessTable + 9] = 0;
   [newProcessTable + 4] = RUNNING;
+  BP = [[newProcessTable + 11] * 512];
   ireturn;
 endif;
 

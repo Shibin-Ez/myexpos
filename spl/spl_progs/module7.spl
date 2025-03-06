@@ -75,6 +75,10 @@ loadi(7, 20);
 // loading Disk free list
 loadi(61, 2);
 
+// loading fork(int8)
+loadi(18, 31);
+loadi(19, 32);
+
 // terminal, disk status to free
 [TERMINAL_STATUS_TABLE] = 0;
 [DISK_STATUS_TABLE] = 0;

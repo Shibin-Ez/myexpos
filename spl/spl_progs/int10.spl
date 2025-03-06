@@ -5,7 +5,18 @@ currentPID = [SYSTEM_STATUS_TABLE + 1];
 alias process_table_entry R1;
 process_table_entry = PROCESS_TABLE + 16 * currentPID;
 
-[process_table_entry + 4] = TERMINATED;
+// set mode flag to 10
+[process_table_entry + 9] = 10;
+
+// switch SP to kernal stack
+SP = [process_table_entry + 11] * 512 - 1;
+
+// invoke exit process
+multipush(R0, R1);
+R1 = 3;
+R2 = currentPID;
+call MOD_1;
+multipop (R0, R1);
 
 // checking all process TERMINATED except idle
 alias pid R2;
