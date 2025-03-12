@@ -52,9 +52,8 @@ if ([PTBR + 4] == -1) then
   multipop(R0, R1);
 endif;
 
-
 // get stack pages, userAreaPage of child
-alias retVal R3;
+alias retVal R10;
 multipush(R0, R1);
 R1 = 1;
 call MOD_2;
@@ -68,8 +67,8 @@ R1 = 1;
 call MOD_2;
 retVal = R0;
 multipop(R0, R1);
-[PAGE_TABLE_BASE + childPID * 20 + 16] = retVal;
-[PAGE_TABLE_BASE + childPID * 20 + 17] = "0110";
+[PAGE_TABLE_BASE + childPID * 20 + 18] = retVal;
+[PAGE_TABLE_BASE + childPID * 20 + 19] = "0110";
 
 multipush(R0, R1);
 R1 = 1;
