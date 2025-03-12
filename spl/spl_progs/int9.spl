@@ -64,7 +64,7 @@ userAreaPageNo = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11];
 [SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
 
 // set SP to start of kernal stack
-SP = userAreaPageNo * 512;
+SP = userAreaPageNo * 512 - 1;
 
 // new process is of same PID
 
