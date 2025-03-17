@@ -2,6 +2,10 @@
 loadi(54, 67);
 loadi(55, 68);
 
+// loading idle process
+loadi(69, 11);
+loadi(70, 12);
+
 SP = 82 * 512 - 1;
 
 call BOOT_MODULE;

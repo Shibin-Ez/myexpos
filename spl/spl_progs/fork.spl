@@ -92,16 +92,24 @@ multipop(R0, R1);
 [PROCESS_TABLE + 16 * childPID + 13] = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 13];
 
 
-// copy per-process resource table (skip for now)
+// copy per-process resource table (do it now)
 alias i R4;
 alias parentStack R5;
 alias childStack R6;
-i = 0;
+i = RESOURCE_TABLE_OFFSET; 
 parentStack = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11] * 512;
 childStack = retVal * 512;
 while (i < 512) do
   [childStack + i] = [parentStack + i];
-  i = i + 1;
+  [childStack + i + 1] = [parentStack + i + 1];
+
+  if ([childStack + i] == SEMAPHORE) then
+    alias semIndex R7;
+    semIndex = [childStack + i + 1];
+    [SEMAPHORE_TABLE + 4 * semIndex + 1] = [SEMAPHORE_TABLE + 4 * semIndex + 1] + 1;
+  endif;
+
+  i = i + 2;
 endwhile;
 
 // copy per-process disk map table (?)

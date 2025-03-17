@@ -1,3 +1,5 @@
+// Module 0: Rescource Manager
+
 alias functionNum R1;
 alias currentPID R2;
 alias retVal R0;
@@ -50,6 +52,54 @@ if (functionNum == 3) then // aquire disk
   [DISK_STATUS_TABLE + 0] = 1;
   [DISK_STATUS_TABLE + 4] = currentPID;
   return;
+else
+if (functionNum == 6) then // aquire semaphore
+  alias i R3;
+  i = 0;
+
+  // finding free entry in semaphore table
+  while (i < 32) do
+    if ([SEMAPHORE_TABLE + i*4] == -1) then
+      break;
+    endif;
+    i = i + 1;
+  endwhile;
+
+  if (i == 32) then // no free semaphore
+    retVal = -1;
+    return;
+  else
+    [SEMAPHORE_TABLE + i*4] = -1; // locking PID
+    [SEMAPHORE_TABLE + i*4 + 1] = 1; // process count
+    retVal = i;
+    return;
+  endif;
+else
+if (functionNum == 7) then // release semaphore
+  alias semIndex R3;
+
+  // check if lockingPID is currentPID
+  if ([SEMAPHORE_TABLE + semIndex*4] == currentPID) then
+    // set lockingPID to -1
+    [SEMAPHORE_TABLE + semIndex*4] = -1;
+
+    // wake up all process in wait_semaphore with semIndex
+    alias pid R4;
+    pid = 0;
+    while (pid < 16) do
+      if ([PROCESS_TABLE + pid*16 + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + pid*16 + 5] == semIndex) then
+        [PROCESS_TABLE + pid*16 + 4] = READY;
+        [PROCESS_TABLE + pid*16 + 5] = -1;
+      endif;
+      pid = pid + 1;
+    endwhile;
+
+    // decrement process count in semaphore table
+    [SEMAPHORE_TABLE + semIndex*4 + 1] = [SEMAPHORE_TABLE + semIndex*4 + 1] - 1;
+  endif;
+  return;
+endif;
+endif;
 endif;
 endif;
 endif;

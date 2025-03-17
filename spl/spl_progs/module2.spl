@@ -1,3 +1,5 @@
+// Module 2: Memory Manager
+
 alias functionNum R1;
 
 if (functionNum == 1) then // get free page

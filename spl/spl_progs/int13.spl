@@ -1,0 +1,96 @@
+// should i switch mode ? (yes, but later)
+
+// get syscall number
+alias syscallNum R0;
+syscallNum = [[PTBR + 2 * ((SP - 5) / 512)] * 512 + (SP - 5) % 512];
+
+// save userSP
+alias userSP R1;
+userSP = SP;
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+
+// swtich stack to kernal
+SP = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11] * 512 - 1;
+
+
+// set mode flag
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = syscallNum;
+
+alias userAreaPageNo R2;
+userAreaPageNo = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11];
+
+if (syscallNum == 17) then // semget
+  alias semId R3; // semaphore descriptor
+  semId = 0;
+
+  // get a free entry in per-process resource table
+  while (semId < 8) do
+    if ([userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + semId * 2] == -1) then
+      break;
+    endif;
+    semId = semId + 1;
+  endwhile;
+
+  if (semId == 8) then
+    // returnVal -1
+    [[PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512] = -1;
+  
+  else
+    // set resource identifier
+    [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + semId * 2] = 1; // for semaphore
+
+    // aquire semaphore - resource manager
+    multipush(R1, R2, R3);
+    R1 = 6; // semaquire functionNum
+    R2 = [SYSTEM_STATUS_TABLE + 1]; // currentPID
+    call MOD_0;
+    multipop(R1, R2, R3);
+
+    // retVal R0 is index of semaphore table entry
+    if (R0 == -1) then // no free semaphore
+      // returnVal -2;
+      [[PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512] = -2;
+    else
+      // storing retVal to per-process resource table
+      [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + semId * 2 + 1] = R0;
+
+      // retVal is per-process resource table index
+      [[PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512] = semId;
+    endif;
+  endif;
+else
+if (syscallNum == 18) then // semrelease
+  // get semId from user stack arguments
+  alias semId R3;
+  semId = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+
+  // check if semId is valid (0-7)
+  if (semId < 0 || semId > 7 || [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + 2*semId] != SEMAPHORE) then
+    // retVal -1
+    [[PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512] = -1;
+  else
+    // release semaphore - resource manager
+    multipush(R0, R1, R2, R3);
+    R1 = 7; // semrelease functionNum
+    R2 = [SYSTEM_STATUS_TABLE + 1]; // currentPID
+    R3 = [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + 2 * semId + 1]; // semaphore index
+    call MOD_0;
+    multipop(R0, R1, R2, R3);
+
+    // invalidate per-process resource table entry
+    [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + semId * 2] = -1;
+    [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + semId * 2 + 1] = -1;
+
+    // retVal 0
+    [[PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512] = 0;
+  endif;
+endif;
+endif;
+
+
+
+// reset modeflag to 0
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+ireturn;
