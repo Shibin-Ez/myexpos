@@ -98,6 +98,63 @@ if (functionNum == 7) then // release semaphore
     [SEMAPHORE_TABLE + semIndex*4 + 1] = [SEMAPHORE_TABLE + semIndex*4 + 1] - 1;
   endif;
   return;
+else
+if (functionNum == 4) then // Aquire Inode
+  alias inodeIndex R2;
+  alias currentPID R3;
+
+  // wait for file in a busy loop
+  while ([FILE_STATUS_TABLE + 4 * inodeIndex] != -1) do // lockingPID
+    [PROCESS_TABLE + currentPID*16 + 4] = WAIT_FILE;
+    [PROCESS_TABLE + currentPID*16 + 5] = inodeIndex;
+    
+    // calling scheduler
+    multipush (R1, R2, R3);
+    call MOD_5;
+    multipop (R1, R2, R3);
+  endwhile;
+
+  // Inode is now locked
+
+  // check if the file is deleted
+  if ([INODE_TABLE + inodeIndex*16 + 1] == -1) then // fileName
+    R0 = -1; // retVal -1
+    return;
+  endif;
+
+  // set lockingPID
+  [FILE_STATUS_TABLE + 4 * inodeIndex] = currentPID;
+
+  R0 = 0; // retVal 0
+  return;
+else
+if (functionNum == 5) then // Release Inode
+  alias inodeIndex R2;
+  alias currentPID R3;
+  
+  // currentPID should be the lockingPID
+  if (currentPID != [FILE_STATUS_TABLE + 4 * inodeIndex]) then
+    R0 = -1; //retVal -1
+    return;
+  endif;
+
+  // free the lockingPID
+  [FILE_STATUS_TABLE + 4 * inodeIndex] = -1;
+
+  // invoke all process in the wait_file + inodeIndex
+  alias pid R4;
+  pid = 0;
+  while (pid < 16) do
+    if ([PROCESS_TABLE + 16 * pid + 4] == WAIT_FILE && [PROCESS_TABLE + 16 * pid + 5] == inodeIndex) then
+      [PROCESS_TABLE + 16 * pid + 4] = READY;
+    endif;
+    pid = pid + 1;
+  endwhile;
+
+  R0 = 0; // retVal
+  return;
+endif;
+endif;
 endif;
 endif;
 endif;

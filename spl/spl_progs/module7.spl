@@ -81,6 +81,13 @@ loadi(29, 42);
 loadi(30, 43);
 loadi(31, 44);
 
+// loading int4
+loadi(10, 23);
+loadi(11, 24);
+
+// loading root file
+loadi(62, 5);
+
 // terminal, disk status to free
 [TERMINAL_STATUS_TABLE] = 0;
 [DISK_STATUS_TABLE] = 0;
@@ -120,6 +127,7 @@ PTLR = 10;
 
 // Process Table - init
 [PROCESS_TABLE + 16 + 1] = 1; // PID of init process
+[PROCESS_TABLE + 16 + 3] = 1; // userId is of root for now
 [PROCESS_TABLE + 16 + 4] = CREATED;
 [PROCESS_TABLE + 16 + 11] = 80; // User area page no - init
 [PROCESS_TABLE + 16 + 13] = 8*512; // UPTR
@@ -181,6 +189,23 @@ i = 0;
 while (i < MAX_SEM_COUNT) do // 32 times
   [SEMAPHORE_TABLE + i*4] = -1; // locking PID
   [SEMAPHORE_TABLE + i*4 + 1] = 0; // process count
+  i = i + 1;
+endwhile;
+
+// initialize file status table
+i = 0;
+while (i < MAX_FILE_NUM) do
+  [FILE_STATUS_TABLE + i + 0] = -1; // lockingPID
+  [FILE_STATUS_TABLE + i + 1] = -1; // file open count
+  i = i + 1;
+endwhile;
+
+// initialize buffer table
+i = 0;
+while (i < MAX_BUFFER) do
+  [BUFFER_TABLE + i * 4 + 0] = -1; // block num
+  [BUFFER_TABLE + i * 4 + 1] = 0; // dirty bit
+  [BUFFER_TABLE + i * 4 + 2] = -1; // lockingPID
   i = i + 1;
 endwhile;
 

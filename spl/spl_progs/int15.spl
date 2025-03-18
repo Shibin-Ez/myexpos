@@ -1,1 +1,44 @@
+// INT 15 : Shutdown systemcall(21)
+
+// set the modeflag
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 21;
+
+// Shutdown should only be called by Shell process, and by root user
+if ([SYSTEM_STATUS_TABLE + 1] != 1 || [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 3] != 1) then
+  // retVal -1
+  [[PTBR + 2 * ((SP - 1) / 512)] * 512 + (SP - 1) % 512] = 0;
+  [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0;
+  ireturn;
+endif;
+
+// set stack to kernal
+SP = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11] * 512 - 1;
+
+// commit changes in the inode table (same page has user table 59,60)
+R1 = 1;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+R3 = 59;
+R4 = 3;
+call MOD_4;
+
+R1 = 1;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+R3 = 60;
+R4 = 4;
+call MOD_4;
+
+// commit changes in the root file
+R1 = 1;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+R3 = 62;
+R4 = 5;
+call MOD_4;
+
+// commit changes in the disk free list
+R1 = 1;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+R3 = 61;
+R4 = 2;
+call MOD_4;
+
 halt;

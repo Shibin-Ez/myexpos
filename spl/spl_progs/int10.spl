@@ -19,16 +19,4 @@ R2 = currentPID;
 call MOD_1;
 multipop (R0, R1);
 
-// checking all process TERMINATED except idle
-alias pid R2;
-pid = 1;
-while (pid < 16) do
-  alias processState R3;
-  processState = [PROCESS_TABLE + 16 * pid + 4];
-  if (processState != TERMINATED) then
-    call MOD_5;
-  endif;
-  pid = pid + 1;
-endwhile;
-
-halt;
+call MOD_5;

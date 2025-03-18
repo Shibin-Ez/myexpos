@@ -59,6 +59,7 @@ if (functionNum == 2) then // disk_load function
   // aquire disk - resource manager
   multipush(R1, R2, R3, R4);
   functionNum = 3;
+  R2 = currentPID;
   call MOD_0;
   multipop(R1, R2, R3, R4);
 
@@ -79,7 +80,36 @@ if (functionNum == 2) then // disk_load function
   return;
   
 else
+if (functionNum == 1) then // disk_store function
+  alias currentPID R2;
+  alias pageNo R3;
+  alias blockNo R4;
+
+  // aquire disk - resource manager
+  multipush(R1, R2, R3, R4);
+  functionNum = 3;
+  R2 = currentPID;
+  call MOD_0;
+  multipop(R1, R2, R3, R4);
+
+  // set disk status table
+  [DISK_STATUS_TABLE + 1] = 1; // store bit
+  [DISK_STATUS_TABLE + 2] = pageNo;
+  [DISK_STATUS_TABLE + 3] = blockNo;
+
+  // calling store statement
+  store(pageNo, blockNo);
+
+  // set process state to wait_disk
+  [PROCESS_TABLE + currentPID*16 + 4] = WAIT_DISK;
+
+  // calling scheduler
+  call MOD_5;
+
   return;
+else
+  return;
+endif;
 endif;
 endif;
 endif;
