@@ -1,0 +1,206 @@
+// get system call number from user stack
+alias syscallNo R1;
+syscallNo = [[PTBR + 2 * ((SP - 5) / 512)] * 512 + (SP - 5) % 512];
+
+// set mode flag to 1 (CREATE System call)
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = syscallNo;
+
+// save userSP
+alias userSP R2;
+userSP = SP;
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 13] = SP;
+
+// switch to kernal stack
+SP = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11] * 512 - 1;
+
+// get file name from user stack
+alias fileName R3;
+fileName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+
+// check if file already exists
+alias fileFound R4;
+fileFound = 0;
+alias inodeIndex R5;
+inodeIndex = 0;
+while (inodeIndex < MAX_FILE_NUM) do
+  if ([INODE_TABLE + inodeIndex * 16 + 1] == fileName) then
+    fileFound = 1;
+    break;
+  endif;
+  inodeIndex = inodeIndex + 1;
+endwhile;
+
+alias returnValAddr R8;
+returnValAddr = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512;
+
+if (syscallNo == 1) then // FILE CREATE
+  // if file already exists - retVal 0
+  if (fileFound == 1) then
+    [returnValAddr] = 0; // retVal
+    [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0; // mode flag
+    SP = userSP;
+    ireturn;
+  endif;
+
+  // search for a free entry
+  inodeIndex = 0;
+  while (inodeIndex < MAX_FILE_NUM) do
+    if ([INODE_TABLE + inodeIndex * 16 + 1] == -1) then
+      break;
+    endif;
+    inodeIndex = inodeIndex + 1;
+  endwhile;
+
+  // retVal -1 if no free entry
+  if (inodeIndex == MAX_FILE_NUM) then
+    [returnValAddr] = -1;
+  else
+    alias inode_entry R6;
+    inode_entry = INODE_TABLE + inodeIndex * 16;
+
+    alias userId R7;
+    userId = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 3];
+
+    // set inode entry
+    [inode_entry + 0] = DATA; // fileType
+    [inode_entry + 1] = fileName; // fileName
+    [inode_entry + 2] = 0; // file size
+
+    // set inode entry - data blocks
+    [inode_entry + 8] = -1;
+    [inode_entry + 9] = -1;
+    [inode_entry + 10] = -1;
+    [inode_entry + 11] = -1;
+
+    // set inode userId as of in the process table
+    [inode_entry + 3] = userId;
+
+    // set inode permission from user stack
+    [inode_entry + 4] = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + (userSP - 3) % 512];
+
+    // setup the root file
+    [ROOT_FILE + inodeIndex * 8 + 0] = fileName; // fileName
+    [ROOT_FILE + inodeIndex * 8 + 1] = 0; // fileSize
+    [ROOT_FILE + inodeIndex * 8 + 2] = DATA; // fileType
+    [ROOT_FILE + inodeIndex * 8 + 3] = [USER_TABLE + 2 * userId]; // username from USER TABLE
+    [ROOT_FILE + inodeIndex * 8 + 4] = [inode_entry + 4]; // permission
+
+    // retVal 0 (SUCCESS)
+    [returnValAddr] = 0;
+  endif;
+else
+if (syscallNo == 4) then // FILE DELETE
+  // file not found - retVal 0
+  if (fileFound == 0) then
+    [returnValAddr] = 0; // retVal
+    [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0; // mode flag
+    SP = userSP;
+    ireturn;
+  endif;
+
+  // file not data file - retVal -1
+  if ([INODE_TABLE + inodeIndex * 16 + 0] != DATA) then
+    [returnValAddr] = -1;
+    [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0; // mode flag
+    SP = userSP;
+    ireturn;
+  endif;
+
+  // check permission - current user not root and he is not the owner
+  alias userId R6;
+  userId = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 3];
+  if (userId != 1 && [INODE_TABLE + inodeIndex * 16 + 3] != userId) then
+    [returnValAddr] = -1; // retVal
+    [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0; // mode flag
+    SP = userSP;
+    ireturn;
+  endif;
+
+  // Aquire a Lock - Rescource Manager
+  backup;
+  R1 = 4; // functionNum
+  R2 = inodeIndex;
+  R3 = [SYSTEM_STATUS_TABLE + 1]; // currentPID
+  call MOD_0;
+  restore;
+
+  // check file open count from file status table
+  if ([FILE_STATUS_TABLE + inodeIndex * 4 + 1 != -1]) then
+    // file is open, cannot be deleted, retVal -2
+    //releasing inode 
+    backup;
+			R1=5; //Function number of Release inode in MOD_1
+			R2=inodeIndex;
+			R3=[SYSTEM_STATUS_TABLE+1]; //PID of current process
+			call MOD_0;	
+		restore;
+
+    [returnValAddr] = -2;
+    [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0; // mode flag
+    SP = userSP;
+    ireturn;
+  endif;
+
+  // for each disk block, reset dirty, free the block
+  alias i R7;
+  i = 0;
+  alias blockNum R9;
+  alias bufferIndex R10;
+  while (i < 4) do
+    blockNum = [INODE_TABLE + inodeIndex * 16 + 8 + i];
+    bufferIndex = blockNum % MAX_BUFFER; // 4 is max buffer
+
+    // if in buffer and is dirty, reset dirty bit
+    if ([BUFFER_TABLE + bufferIndex * 4] == blockNum && [BUFFER_TABLE + bufferIndex * 4 + 1] == 1) then
+      [BUFFER_TABLE + bufferIndex * 4 + 1] = 0;
+    endif;
+
+    // calling release block - Memory Manager
+    backup;
+    R1 = 4; // functionNum
+    R2 = blockNum;
+    R3 = [SYSTEM_STATUS_TABLE + 1];
+    call MOD_2;
+    restore;
+
+    i = i + 1;
+  endwhile;
+
+  // invalidate inode table entry
+  i = 0;
+  while (i < 16) do
+    [INODE_TABLE + inodeIndex * 16 + i] = -1;
+    i = i + 1;
+  endwhile;
+  [INODE_TABLE + inodeIndex * 16 + 2] = 0; // fileSize
+
+  // invalidate root file entry
+  i = 0;
+  while (i < 8) do
+    [ROOT_FILE + inodeIndex * 8 + i] = -1;
+    i = i + 1;
+  endwhile;
+  [ROOT_FILE + inodeIndex * 16 + 1] = 0; // fileSize
+
+  // Release the Lock - Rescource Manager (NOTE: Context is not saving to avoid code exceeding 2 pages)
+  backup;
+  R1 = 5;
+  R2 = inodeIndex;
+  R3 = [SYSTEM_STATUS_TABLE + 1];
+  call MOD_0;
+  restore;
+
+  print returnValAddr;
+  breakpoint;
+
+  // retVal 0 (SUCCESS)
+  [returnValAddr] = 0;
+
+endif;
+endif;
+
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0; // mode flag
+
+SP = userSP;
+
+ireturn;
