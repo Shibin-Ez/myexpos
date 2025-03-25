@@ -44,7 +44,6 @@ else
     // call get code page
     breakpoint;
     blockNum = [DISK_MAP_TABLE + 10 * [SYSTEM_STATUS_TABLE + 1] + EPN];
-    print blockNum;
     multipush (R2, R3, R4);
     multipush(EPN);
     R1 = 5; // arg1 functionNum

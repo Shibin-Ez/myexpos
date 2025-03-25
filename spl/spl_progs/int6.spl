@@ -9,25 +9,121 @@ userSP = SP;
 
 SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
 
-// file descriptor from physical address
-alias physicalPageNo R1;
-alias offset R2;
-physicalPageNo = [PTBR + 2 * ((userSP - 4) / 512)];
-offset = (userSP - 4) % 512;
-alias fileDescAddress R3;
-fileDescAddress = physicalPageNo * 512 + offset;
-alias fileDescriptor R4;
-fileDescriptor = [fileDescAddress];
+// file descriptor from user stack
+alias fileDescriptor R1;
+fileDescriptor = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+
+alias returnAddr R2;
+returnAddr = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512;
 
 // -1 is the valid fd for console input
-if (fileDescriptor != -1) then
-  alias physicalAddrRetVal R5;
-  physicalAddrRetVal = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512;
-  [physicalAddrRetVal] = -1;
+if (fileDescriptor != -1) then // FILE READ
+  // reading from file
+
+  // check if fd is valid
+  if (fileDescriptor < 0 || fileDescriptor >= 7) then
+    [returnAddr] = -1;
+  else
+    // locate per-process resource table
+    alias resourceTableEntry R3;
+    resourceTableEntry = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11] * 512 + RESOURCE_TABLE_OFFSET + 2 * fileDescriptor;
+
+    // check if entry is a file
+    if ([resourceTableEntry] != FILE) then
+      [returnAddr] = -1;
+    else
+      alias openFileTableIndex R4;
+      openFileTableIndex = [resourceTableEntry + 1];
+
+      // get inode index, from open file table
+      alias inodeIndex R5;
+      inodeIndex = [OPEN_FILE_TABLE + 4 * openFileTableIndex];
+
+      alias retVal R6;
+
+      // aquire inode - Resource Manager
+      multipush(R0, R1, R2, R3, R4, R5);
+      R1 = 4;
+      R2 = inodeIndex;
+      R3 = [SYSTEM_STATUS_TABLE + 1];
+      call MOD_0;
+      retVal = R0;
+      multipop(R0, R1, R2, R3, R4, R5);
+
+      if (retVal == -1) then
+        [returnAddr] = -1;
+      else
+        // get LSEEK, from open file table
+        alias lseek R6;
+        lseek = [OPEN_FILE_TABLE + 4 * openFileTableIndex + 2];
+
+        alias wordAddress R7;
+        wordAddress = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + (userSP - 3) % 512];
+        wordAddress = [PTBR + 2 * (wordAddress / 512)] * 512 + wordAddress % 512;
+
+        // check if file is root
+        if (inodeIndex == INODE_ROOT) then
+          // check if lseek is root_file_size (480)
+          if (lseek == 480) then
+            // retVal -2 (pointer reached end of file)
+            [returnAddr] = -2;
+          else
+            // reading to input from rootfile
+            [wordAddress] = [ROOT_FILE + lseek];
+
+            // increment LSEEK postion
+            [OPEN_FILE_TABLE + 4 * openFileTableIndex + 2] = [OPEN_FILE_TABLE + 4 * openFileTableIndex + 2] + 1;
+          
+            [returnAddr] = 0;
+          endif;
+        else
+          // check if lseek is fileSize
+          if (lseek == [INODE_TABLE + 16 * inodeIndex + 2]) then
+            // retVal -2 (pointer reached end of file)
+            [returnAddr] = -2;
+          else
+            // find disk block number
+            alias blockIndex R8;
+            alias blockNum R9;
+            alias blockOffset R10;
+            blockIndex = lseek / 512;
+            blockOffset = lseek % 512;
+            blockNum = [INODE_TABLE + 16 * inodeIndex + 8 + blockIndex];
+            
+            // calling buffer_read - File Manager
+            backup;
+            R1 = 2;
+            R2 = blockNum;
+            R3 = blockOffset;
+            R4 = wordAddress;
+            call MOD_3;
+            restore;
+
+            // increment LSEEK postion
+            [OPEN_FILE_TABLE + 4 * openFileTableIndex + 2] = [OPEN_FILE_TABLE + 4 * openFileTableIndex + 2] + 1;
+          
+            // retVal SUCCESS
+            [returnAddr] = 0;
+          endif;
+        endif;
+
+        // release inode - Resource Manager
+        backup;
+        R1 = 5;
+        R2 = inodeIndex;
+        R3 = [SYSTEM_STATUS_TABLE + 1];
+        call MOD_0;
+        restore;
+      endif;
+
+      
+    endif;
+  endif;
+
 else
-  alias wordPhysicalAddress R5;
+  alias wordPhysicalAddress R4;
   wordPhysicalAddress = [PTBR + 2 * ((userSP - 3) / 512)] * 512 + (userSP - 3) % 512;
-  multipush(R0, R1, R2, R3, R4, R5);
+  multipush(R0, R1, R2, R4);
   alias arg1 R1;
   alias arg2 R2;
   alias arg3 R3;
@@ -37,11 +133,9 @@ else
 
   call MOD_4;
 
-  multipop(R0, R1, R2, R3, R4, R5);
+  multipop(R0, R1, R2, R4);
 
-  alias physicalAddrRetVal R6;
-  physicalAddrRetVal = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512;
-  [physicalAddrRetVal] = 0;
+  [returnAddr] = 0;
 endif;
 
 // restoring mode flag in process table

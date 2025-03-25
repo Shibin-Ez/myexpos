@@ -107,6 +107,12 @@ while (i < 512) do
     alias semIndex R7;
     semIndex = [childStack + i + 1];
     [SEMAPHORE_TABLE + 4 * semIndex + 1] = [SEMAPHORE_TABLE + 4 * semIndex + 1] + 1;
+  else
+  if ([childStack + i] == FILE) then
+    alias openFileTableIndex R7;
+    openFileTableIndex = [childStack + i + 1];
+    [OPEN_FILE_TABLE + 4 * openFileTableIndex + 1] = [OPEN_FILE_TABLE + 4 * openFileTableIndex + 1] + 1;
+  endif;
   endif;
 
   i = i + 2;

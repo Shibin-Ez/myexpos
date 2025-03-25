@@ -190,9 +190,6 @@ if (syscallNo == 4) then // FILE DELETE
   call MOD_0;
   restore;
 
-  print returnValAddr;
-  breakpoint;
-
   // retVal 0 (SUCCESS)
   [returnValAddr] = 0;
 

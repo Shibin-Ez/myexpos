@@ -1,0 +1,107 @@
+// get syscallNo from user stack
+alias syscallNo R0;
+syscallNo = [[PTBR + 2 * ((SP - 5) / 512)] * 512 + (SP - 5) % 512];
+
+// set modeflag to syscallNo
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = syscallNo;
+
+// save user stack
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+alias userSP R1;
+userSP = SP;
+
+// switch to kernal stack
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+alias returnAddr R2;
+returnAddr = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512;
+
+alias userAreaPageNo R3;
+userAreaPageNo = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11];
+
+if (syscallNo == 2) then // OPEN syscall
+  // finding a free per-process resource table entry
+  alias i R4;
+  i = 0;
+  while (i < 8) do
+    if ([userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + i * 2] == -1) then
+      break;
+    endif;
+  endwhile;
+
+  // check if resource table is full
+  if (i == 8) then
+    [returnAddr] = -3;
+  else
+    // get fileName from user stack
+    alias fileName R5;
+    fileName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+
+    alias openFileTableIndex R6;
+
+    // calling open function - File Manager
+    multipush(R0, R1, R2, R3, R4, R5);
+    R1 = 3; // functionNum
+    R2 = fileName; // fileName
+    call MOD_3;
+    openFileTableIndex = R0;
+    multipop(R0, R1, R2, R3, R4, R5);
+
+    // check if open fails, retVal error_code
+    if (openFileTableIndex < 0) then
+      [returnAddr] = openFileTableIndex;
+    else
+      // setting per-process resource table entry
+      [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + i * 2] = FILE;
+      [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + i * 2 + 1] = openFileTableIndex;
+
+      // retVal is index (f.d) of resource table entry
+      [returnAddr] = i;
+    endif;
+  endif;
+else
+if (syscallNo == 3) then // CLOSE syscall
+  // get f.d from user stack
+  alias fileDescriptor R4;
+  fileDescriptor = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+
+  // check validity of file descriptor
+  if (fileDescriptor < 0 || fileDescriptor >= 8) then
+    [returnAddr] = -1;
+  else
+    // locate per-process resource table entry
+    alias resourceTableEntry R5;
+    resourceTableEntry = [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + fileDescriptor * 2];
+
+    // check if resource table entry is valid
+    if (resourceTableEntry != FILE) then
+      [returnAddr] = -1;
+    else
+      // get openFileTableIndex from resource table
+      alias openFileTableIndex R6;
+      openFileTableIndex = [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + fileDescriptor * 2 + 1];
+
+      // calling close function - File Manager
+      backup;
+      R1 = 4; // functionNum
+      R2 = openFileTableIndex; // open file table entry
+      call MOD_3;
+      restore;
+
+      // invalidate resource table entry
+      [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + fileDescriptor * 2] = -1;
+      [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + fileDescriptor * 2 + 1] = -1;
+
+      [returnAddr] = 0;
+    endif;
+  endif;
+endif;
+endif;
+
+// reset modeflag
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+
+// set sp to user stack
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13];
+
+ireturn;
