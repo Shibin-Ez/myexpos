@@ -19,12 +19,16 @@ load --int=8 $HOME/myexpos/spl/spl_progs/fork.xsm
 load --int=9 $HOME/myexpos/spl/spl_progs/int9.xsm
 load --int=10 $HOME/myexpos/spl/spl_progs/int10.xsm
 load --int=11 $HOME/myexpos/spl/spl_progs/int11.xsm
+load --int=12 $HOME/myexpos/spl/spl_progs/int12.xsm
 load --int=13 $HOME/myexpos/spl/spl_progs/int13.xsm
 load --int=14 $HOME/myexpos/spl/spl_progs/int14.xsm
 load --int=15 $HOME/myexpos/spl/spl_progs/int15.xsm
+load --int=16 $HOME/myexpos/spl/spl_progs/int16.xsm
+load --int=17 $HOME/myexpos/spl/spl_progs/int17.xsm
 load --exhandler $HOME/myexpos/spl/spl_progs/exception_handler.xsm
 load --idle $HOME/myexpos/expl/expl_progs/idle.xsm
-load --init $HOME/myexpos/expl/expl_progs/shell2.xsm
+load --init $HOME/myexpos/expl/expl_progs/login.xsm
+load --shell $HOME/myexpos/expl/expl_progs/shell3.xsm
 load --exec $HOME/myexpos/expl/expl_progs/create.xsm
 load --exec $HOME/myexpos/expl/expl_progs/delete.xsm
 load --exec $HOME/myexpos/expl/expl_progs/read.xsm
@@ -36,5 +40,7 @@ load --exec $HOME/myexpos/expl/expl_progs/rm.xsm
 load --exec $HOME/myexpos/expl/expl_progs/s25a1.xsm
 load --exec $HOME/myexpos/expl/expl_progs/s25a2.xsm
 load --exec $HOME/myexpos/expl/expl_progs/s25a3.xsm
+load --exec $HOME/myexpos/expl/expl_progs/lu.xsm
+load --exec $HOME/myexpos/expl/expl_progs/ru.xsm
 load --data $HOME/myexpos/expl/expl_progs/sample.dat
 load --data $HOME/myexpos/expl/expl_progs/numbers.dat

@@ -1,0 +1,71 @@
+// INT 17 : LOGIN
+
+// set modeflag to 27
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 27;
+
+// save SP, switch to kernal stack
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 13] = SP;
+alias userSP R0;
+userSP = SP;
+SP = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11] * 512 - 1;
+
+alias returnAddr R1;
+returnAddr = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512;
+
+// INT17 should only be invoked by login process
+if ([PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 1] == 1) then
+  // get userId from userName in User table
+  alias userName R2;
+  userName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+
+  alias userId R3;
+  userId = 0;
+  while (userId < MAX_USER_NUM) do
+    if ([USER_TABLE + 2 * userId] == userName) then
+      break;
+    endif;
+    userId = userId + 1;
+  endwhile;
+
+  if (userId == MAX_USER_NUM) then
+    // userName does not exist
+    [returnAddr] = -1;
+  else
+    // encrypting the input password
+    alias password R4;
+    alias encryptedPassword R5;
+    password = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + (userSP - 3) % 512];
+    encryptedPassword = password;
+    encrypt encryptedPassword;
+
+    // check if encryptedPassword matches
+    if ([USER_TABLE + 2 * userId + 1] == encryptedPassword) then
+      // initiate shell process (PID: 2)
+      [PROCESS_TABLE + 16 * 2 + 4] = CREATED;
+      [PROCESS_TABLE + 16 * 2 + 3] = userId;
+
+      // set current process state to wait
+      [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 4] = WAIT_PROCESS;
+      [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 5] = 2;
+
+      // set current user id, system status table
+      [SYSTEM_STATUS_TABLE + 0] = userId;
+
+      // invoke scheduler
+      backup;
+      call MOD_5;
+      restore;
+      [returnAddr] = 0;
+    else
+      [returnAddr] = -1;
+    endif;
+  endif;
+else
+  [returnAddr] = -2;
+endif;
+
+// reset mode flag
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = -1;
+
+SP = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 13];
+ireturn;

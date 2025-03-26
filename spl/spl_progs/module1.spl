@@ -159,7 +159,7 @@ if (functionNum == 1) then // get pcb entry
   R0 = childPID;
   return;
 else
-if (functionNum == 5) then
+if (functionNum == 5) then // kill_all
   alias currentPID R2;
 
   // lock all valid files

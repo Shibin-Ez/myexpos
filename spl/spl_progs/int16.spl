@@ -1,0 +1,196 @@
+// save user stack
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+alias userSP R0;
+userSP = SP;
+
+// get syscallNo from user stack
+alias syscallNo R1;
+syscallNo = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + (userSP - 5) % 512];
+
+// set modeflag to syscallNo
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = syscallNo;
+
+alias returnAddr R2;
+returnAddr = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512;
+
+if (syscallNo == 22) then // NEW USER
+  // should be invoked by root user, and by shell process
+  if ([SYSTEM_STATUS_TABLE] == 1 && [SYSTEM_STATUS_TABLE + 1] == 2) then
+    // check if userName already exist
+    alias userName R3;
+    alias userId R4;
+    userName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+    userId = 0;
+    while (userId < MAX_USER_NUM) do
+      if ([USER_TABLE + 2 * userId] == userName) then
+        break;
+      endif;
+      userId = userId + 1;
+    endwhile;
+
+    if (userId == MAX_USER_NUM) then
+      // find a free entry, user table
+      userId = 0;
+      while (userId < MAX_USER_NUM) do
+        if ([USER_TABLE + 2 * userId] == -1) then
+          break;
+        endif;
+        userId = userId + 1;
+      endwhile;
+
+      if (userId == MAX_USER_NUM) then
+        [returnAddr] = -3; // max user limit
+      else
+        // get encrypted password from input password
+        alias password R5;
+        alias encryptedPassword R6;
+        password = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + (userSP - 3) % 512];
+        encryptedPassword = password;
+        encrypt encryptedPassword;
+
+        // set user table entry
+        [USER_TABLE + 2 * userId + 0] = userName;
+        [USER_TABLE + 2 * userId + 1] = encryptedPassword;
+
+        [returnAddr] = 0;
+      endif;
+    else
+      [returnAddr] = -1; // user already exist
+    endif;
+  else
+    [returnAddr] = -2; // permission denied
+  endif;
+else
+if (syscallNo == 23) then // REMOVE USER
+  // should be invoked by root user, and by shell process
+  if ([SYSTEM_STATUS_TABLE] == ROOT && [SYSTEM_STATUS_TABLE + 1] == 2) then
+    // should not remove root or kernal user
+    alias userName R3;
+    userName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+    if (userName == "root" || userName == "kernal") then
+      [returnAddr] = -2; // permission denied
+    else
+      // find the entry in user table
+      alias userId R4;
+      userId = 0;
+      while (userId < MAX_USER_NUM) do
+        if ([USER_TABLE + 2 * userId] == userName) then
+          break;
+        endif;
+        userId = userId + 1;
+      endwhile;
+
+      if (userId == MAX_USER_NUM) then
+        [returnAddr] = -1; // user not found
+      else
+        // user should not have any files, check rootFile
+        alias inodeIndex R5;
+        inodeIndex = 0;
+        while (inodeIndex < MAX_FILE_NUM) do
+          if ([ROOT_FILE + 8 * inodeIndex + 3] == userName) then
+            break;
+          endif;
+          inodeIndex = inodeIndex + 1;
+        endwhile;
+
+        if (inodeIndex == MAX_FILE_NUM) then
+          // invalidate user table entry
+          [USER_TABLE + 2 * userId + 0] = -1;
+          [USER_TABLE + 2 * userId + 1] = -1;
+
+          [returnAddr] = 0;
+        else
+          [returnAddr] = -3; // user has files
+        endif;
+      endif;
+    endif;
+  else
+    [returnAddr] = -2; // permission denied
+  endif;
+else
+if (syscallNo == 24) then // SET PASSWORD
+  // current process should be shell
+  if ([SYSTEM_STATUS_TABLE + 1] == 2) then
+    // find the entry in user table
+    alias userName R3;
+    userName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+    alias userId R4;
+    userId = 0;
+    while (userId < MAX_USER_NUM) do
+      if ([USER_TABLE + 2 * userId] == userName) then
+        break;
+      endif;
+      userId = userId + 1;
+    endwhile;
+
+    if (userId == MAX_USER_NUM) then
+      [returnAddr] = -2; // user not found
+    else
+      // userId should be that of process only, or user should be root
+      if ([SYSTEM_STATUS_TABLE] == userId || [SYSTEM_STATUS_TABLE] == ROOT) then
+        // get encrypted password from input password
+        alias password R5;
+        alias encryptedPassword R6;
+        password = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + (userSP - 3) % 512];
+        encryptedPassword = password;
+        encrypt encryptedPassword;
+
+        // set new encryptedPassword to user table
+        [USER_TABLE + 2 * userId + 1] = encryptedPassword;
+
+        [returnAddr] = 0;
+      else
+        [returnAddr] = -1; // permission denied
+      endif;
+    endif;
+  else
+    [returnAddr] = -1;
+  endif;
+else
+if (syscallNo == 26) then // GET USER ID
+  // find userId from userName in user table
+  alias userName R3;
+  alias userId R4;
+  userName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+  userId = 0;
+  while (userId < MAX_USER_NUM) do
+    if ([USER_TABLE + 2 * userId] == userName) then
+      break;
+    endif;
+    userId = userId + 1;
+  endwhile;
+  
+  if (userId == MAX_USER_NUM) then
+    [returnAddr] = -1; // user not found
+  else
+    [returnAddr] = userId;
+  endif;
+else
+if (syscallNo == 25) then // GET USER NAME
+  // validate userId
+  alias userId R3;
+  userId = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+  if (userId < 0 || userId >= MAX_USER_NUM) then
+    [returnAddr] = -1;
+  else
+    // check if user table entry is valid
+    alias userName R4;
+    userName = [USER_TABLE + 2 * userId];
+    if (userName == -1) then
+      [returnAddr] = -1;
+    else
+      [returnAddr] = userName;
+    endif;
+  endif;
+endif;
+endif;
+endif;
+endif;
+endif;
+
+
+// reset modeflag
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0;
+
+SP = userSP;
+ireturn;

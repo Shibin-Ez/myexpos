@@ -1,0 +1,49 @@
+// INT 12 : LOGOUT
+
+// set modeflag to 28
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 28;
+
+// save SP, switch to kernal stack
+alias userSP R0;
+userSP = SP;
+SP = [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 11] * 512 - 1;
+
+alias returnAddr R1;
+returnAddr = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + (userSP - 1) % 512;
+
+// Logout should only be called by Shell (PID: 2)
+if ([SYSTEM_STATUS_TABLE + 1] == 2) then
+  // kill all user process, except shell - kill_all - Process Manager
+  backup;
+  R1 = 5;
+  R2 = [SYSTEM_STATUS_TABLE + 1];
+  call MOD_1;
+  restore;
+
+  // set current process shell to terminated
+  [PROCESS_TABLE + 16 * 2 + 4] = TERMINATED;
+  
+  // setup entry point, stack pointer for shell
+  [[PTBR + 16] * 512] = [[PTBR + 8] * 512 + 1];
+  [PROCESS_TABLE + 16 * 2 + 13] = 8 * 512;
+
+
+  // wake up the login process
+  [PROCESS_TABLE + 16 * 1 + 4] = READY;
+
+  // set user as kernal
+  [SYSTEM_STATUS_TABLE] = 0;
+
+  // invoke scheduler
+  backup;
+  call MOD_5;
+  restore;
+
+  [returnAddr] = 0;
+else
+  [returnAddr] = -1;
+endif;
+
+[PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0;
+SP = userSP;
+ireturn;
