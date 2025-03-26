@@ -27,6 +27,7 @@ if (syscallNo == 2) then // OPEN syscall
     if ([userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + i * 2] == -1) then
       break;
     endif;
+    i = i + 1;
   endwhile;
 
   // check if resource table is full
@@ -95,6 +96,82 @@ if (syscallNo == 3) then // CLOSE syscall
       [returnAddr] = 0;
     endif;
   endif;
+else
+if (syscallNo == 6) then
+  // get f.d from user stack
+  alias fileDescriptor R4;
+  fileDescriptor = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + (userSP - 4) % 512];
+
+  // check validity of file descriptor
+  if (fileDescriptor < 0 || fileDescriptor >= 8) then
+    [returnAddr] = -1;
+  else
+    // locate per-process resource table entry
+    alias resourceTableEntry R5;
+    resourceTableEntry = [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + fileDescriptor * 2];
+
+    // check if resource table entry is valid
+    if (resourceTableEntry != FILE) then
+      [returnAddr] = -1;
+    else
+      // get openFileTableIndex from resource table
+      alias openFileTableIndex R6;
+      openFileTableIndex = [userAreaPageNo * 512 + RESOURCE_TABLE_OFFSET + fileDescriptor * 2 + 1];
+
+      // get inodeIndex from open file table
+      alias inodeIndex R7;
+      inodeIndex = [OPEN_FILE_TABLE + 4 * openFileTableIndex];
+
+      // aquire inode - Resource Manager
+      multipush(R1, R2, R3, R4, R5, R6, R7);
+      R1 = 4;
+      R2 = inodeIndex;
+      R3 = [SYSTEM_STATUS_TABLE + 1];
+      call MOD_0;
+      multipop(R1, R2, R3, R4, R5, R6, R7);
+
+      if (R0 == -1) then
+        [returnAddr] = -1;
+      else
+        // get current LSEEK value - open file table
+        alias lseekAddr R8;
+        alias lseek R9;
+        lseekAddr = OPEN_FILE_TABLE + 4 * openFileTableIndex + 2;
+        lseek = [lseekAddr];
+
+        // check if lseek+offset is negative
+        alias offset R10;
+        offset = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + (userSP - 3) % 512];
+        if (lseek + offset < 0) then
+          [returnAddr] = -2;
+        else
+          // check validity of input offset
+          if (offset == 0) then // reset lseek to 0
+            [lseekAddr] = 0;
+          else
+          if (lseek + offset >= [INODE_TABLE + 16 * inodeIndex + 2]) then // File Size
+            [lseekAddr] = [INODE_TABLE + 16 * inodeIndex + 2];
+          else
+            // set LSEEK in open file table
+            [lseekAddr] = lseek + offset;
+          endif;
+          endif;
+
+          [returnAddr] = 0;
+        endif;
+        
+      endif;
+
+      // release inode - Resource Manager
+      backup;
+      R1 = 5;
+      R2 = inodeIndex;
+      R3 = [SYSTEM_STATUS_TABLE + 1];
+      call MOD_0;
+      restore;
+    endif;
+  endif;
+endif;
 endif;
 endif;
 

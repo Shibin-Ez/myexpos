@@ -29,5 +29,12 @@ load --exec $HOME/myexpos/expl/expl_progs/create.xsm
 load --exec $HOME/myexpos/expl/expl_progs/delete.xsm
 load --exec $HOME/myexpos/expl/expl_progs/read.xsm
 load --exec $HOME/myexpos/expl/expl_progs/syncRead.xsm
+load --exec $HOME/myexpos/expl/expl_progs/cat.xsm
+load --exec $HOME/myexpos/expl/expl_progs/cp.xsm
+load --exec $HOME/myexpos/expl/expl_progs/ls.xsm
+load --exec $HOME/myexpos/expl/expl_progs/rm.xsm
+load --exec $HOME/myexpos/expl/expl_progs/s25a1.xsm
+load --exec $HOME/myexpos/expl/expl_progs/s25a2.xsm
+load --exec $HOME/myexpos/expl/expl_progs/s25a3.xsm
 load --data $HOME/myexpos/expl/expl_progs/sample.dat
 load --data $HOME/myexpos/expl/expl_progs/numbers.dat

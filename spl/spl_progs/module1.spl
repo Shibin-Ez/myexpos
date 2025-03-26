@@ -158,6 +158,56 @@ if (functionNum == 1) then // get pcb entry
   [PROCESS_TABLE + 16 * childPID + 15] = PTLR;
   R0 = childPID;
   return;
+else
+if (functionNum == 5) then
+  alias currentPID R2;
+
+  // lock all valid files
+  alias i R3;
+  i = 0;
+  while (i < MAX_FILE_NUM) do
+    // check validity of inode index
+    if ([INODE_TABLE + 16 * i + 1] != -1) then
+      // aquire inode - Resource Manager
+      multipush(R1, R2, R3);
+      R1 = 4;
+      R2 = i; // inodeIndex
+      R3 = currentPID;
+      call MOD_0;
+      multipop(R1, R2, R3);
+    endif;
+    i = i + 1;
+  endwhile;
+
+  // for pager module
+  i = 2;
+  while (i < MAX_PROC_NUM - 1) do
+    if (currentPID != [PROCESS_TABLE + 16 * i + 1] && [PROCESS_TABLE + 16 * i + 4] != TERMINATED) then
+      // calling exit process - Process Manager self
+      multipush(R1, R2, R3);
+      R1 = 3;
+      R2 = i; // pid
+      call MOD_1;
+      multipop(R1, R2, R3);
+    endif;
+    i = i + 1;
+  endwhile;
+
+  // release all vaild files
+  i = 0;
+  while (i < MAX_FILE_NUM) do
+    // release inode - Resource Manager
+    backup;
+    R1 = 5;
+    R2 = i; // inodeIndex
+    R3 = currentPID;
+    call MOD_0;
+    restore;
+  i = i + 1;
+  endwhile;
+
+  return;
+endif;
 endif;
 endif;
 endif;

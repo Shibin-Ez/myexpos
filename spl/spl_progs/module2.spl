@@ -57,6 +57,26 @@ if (functionNum == 2) then // release page
 
   return;
 else
+if (functionNum == 3) then // get free block
+  alias i R0;
+  i = DISK_FREE_AREA;
+  while (i < DISK_SWAP_AREA) do
+    // check for a free entry in disk free DISK_FREE_LIST
+    if ([DISK_FREE_LIST + i] == 0) then
+      [DISK_FREE_LIST + i] = 1;
+      break;
+    endif;
+    i = i + 1;
+  endwhile;
+
+  // retVal is R0
+
+  if (i == DISK_SWAP_AREA) then
+    R0 = -1;
+  endif;
+
+  return;
+else
 if (functionNum == 5) then // get free code page
   alias blockNum R2;
   alias pid R3;
@@ -101,6 +121,7 @@ if (functionNum == 4) then // release block
   alias blockNum R2;
   [DISK_FREE_LIST + blockNum] = [DISK_FREE_LIST + blockNum] - 1;
   return;
+endif;
 endif;
 endif;
 endif;
